@@ -1,0 +1,103 @@
+name: CI - build & test
+
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+    branches: [ main, master ]
+
+jobs:
+  build-and-test:
+    name: Build & Test (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Show runner info
+        run: |
+          echo "Runner OS: $RUNNER_OS"
+          uname -a || true
+        shell: bash
+
+      # -------------------------
+      # Linux (Ubuntu) specific
+      # -------------------------
+      - name: Install dependencies (Linux)
+        if: matrix.os == 'ubuntu-latest'
+        run: |
+          sudo apt-get update -y
+          sudo apt-get install -y build-essential gcc make pkg-config git python3
+          # optional useful tools
+          sudo apt-get install -y clang clang-format
+        shell: bash
+
+      # -------------------------
+      # macOS specific
+      # -------------------------
+      - name: Install dependencies (macOS)
+        if: matrix.os == 'macos-latest'
+        run: |
+          # Xcode command line tools are typically present on the runner.
+          # Ensure brew exists; if not, skip. Use clang (default) and make (from Xcode CLT).
+          brew --version || true
+          clang --version
+          make --version
+        shell: bash
+
+      # -------------------------
+      # Windows specific (MSYS2)
+      # -------------------------
+      - name: Setup MSYS2 + MINGW64 (Windows)
+        if: matrix.os == 'windows-latest'
+        uses: msys2/setup-msys2@v2
+        with:
+          msystem: MINGW64
+          update: true
+          install: >
+            mingw-w64-x86_64-gcc
+            mingw-w64-x86_64-make
+            mingw-w64-x86_64-pkg-config
+            mingw-w64-x86_64-toolchain
+
+      # -------------------------
+      # Build & Test
+      # -------------------------
+      - name: Build & run tests (Linux / macOS)
+        if: matrix.os != 'windows-latest'
+        run: |
+          # Print compiler
+          ${CC:-gcc} --version || clang --version || true
+          # Build & run tests using Makefile
+          make test
+        shell: bash
+
+      - name: Build & run tests (Windows - MSYS2)
+        if: matrix.os == 'windows-latest'
+        run: |
+          echo "Using MSYS2 MINGW64 environment"
+          # Ensure MSYS2's mingw64 bin is on PATH (setup-msys2 does this)
+          which gcc || true
+          gcc --version
+          make --version
+          # Run the Makefile test target
+          make test
+        shell: msys2 {0}
+
+      # -------------------------
+      # Optional: Upload test logs (artifact) for debugging on failure
+      # -------------------------
+      - name: Upload build logs (artifact)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ci-logs-${{ matrix.os }}
+          path: |
+            build/**/*
+            dist/**/*
+            # include any log files your build creates
+
