@@ -1,7 +1,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <time.h>
-#include "guess.h"
+#include "guess.c"
 
 int main(void) {
     srand((unsigned)time(NULL));
